@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 zbus = "5.5.0"
-bluer = "0.17.3"
+bluer = { version = "0.17.3", features = ["bluetoothd"] }
 tokio = { version = "1", features = ["full"] }
 uuid = "1"
