@@ -1,0 +1,33 @@
+name: Build for Raspberry Pi (32-bit)
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    build:
+        name: Cross-compile for armv7-unknown-linux-gnueabihf
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: 🛎️ Checkout repository
+              uses: actions/checkout@v4
+
+            - name: 🛠️ Install Rust target
+              run: rustup target add armv7-unknown-linux-gnueabihf
+
+            - name: 📦 Install dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y gcc-arm-linux-gnueabihf
+
+            - name: 🚀 Build (release)
+              run: |
+                  cargo build --release --target=armv7-unknown-linux-gnueabihf
+
+            - name: 📤 Upload build artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: rpi-binary
+                  path: target/armv7-unknown-linux-gnueabihf/release/<your-binary-name>
