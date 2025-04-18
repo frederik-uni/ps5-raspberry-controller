@@ -24,6 +24,9 @@ jobs:
 
             - name: 🚀 Build (release)
               run: |
+                  export PKG_CONFIG_ALLOW_CROSS=1
+                  export PKG_CONFIG_SYSROOT_DIR=/
+                  export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig
                   cargo build --release --target=armv7-unknown-linux-gnueabihf
 
             - name: 📤 Upload build artifact
