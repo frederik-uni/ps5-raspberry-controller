@@ -1,0 +1,10 @@
+[package]
+name = "bt_hid_gamepad"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zbus = "5.5.0"
+bluer = "0.17.3"
+tokio = { version = "1", features = ["full"] }
+uuid = "1"
