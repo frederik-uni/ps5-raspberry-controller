@@ -1,6 +1,8 @@
 use bluer::Session;
 use bluer::adv::Advertisement;
-use bluer::gatt::local::{Application, Characteristic, CharacteristicFlags, Service};
+use bluer::gatt::local::{
+    AccessPerm, Application, Characteristic, Descriptor, NotifyValue, ReadValue, Service,
+};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -9,6 +11,7 @@ use uuid::Uuid;
 const HID_SERVICE_UUID: Uuid = Uuid::from_u128(0x1812_0000_0000_1000_8000_00805f9b34fb);
 const HID_REPORT_UUID: Uuid = Uuid::from_u128(0x2a4d_0000_0000_1000_8000_00805f9b34fb);
 const HID_REPORT_MAP_UUID: Uuid = Uuid::from_u128(0x2a4b_0000_0000_1000_8000_00805f9b34fb);
+const CCCD_UUID: Uuid = Uuid::from_u128(0x2902_0000_0000_1000_8000_00805f9b34fb);
 
 const HID_REPORT_MAP: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop)
@@ -42,7 +45,7 @@ async fn main() -> bluer::Result<()> {
     // Report Map Characteristic (Readable)
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_MAP_UUID,
-        read: Some(CharacteristicRead {
+        read: Some(ReadValue {
             value: HID_REPORT_MAP.to_vec(),
             permitted: true,
             requires_encryption: false,
@@ -54,18 +57,18 @@ async fn main() -> bluer::Result<()> {
     let (tx, mut rx) = mpsc::channel(32);
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_UUID,
-        notify: Some(CharacteristicNotify {
+        notify: Some(NotifyValue {
             sender: tx,
             permitted: true,
             requires_encryption: false,
         }),
         descriptors: vec![Descriptor {
             uuid: CCCD_UUID,
-            read: Some(DescriptorRead {
+            read: Some(AccessPerm {
                 permitted: true,
                 requires_encryption: false,
             }),
-            write: Some(DescriptorWrite {
+            write: Some(AccessPerm {
                 permitted: true,
                 requires_encryption: false,
             }),
