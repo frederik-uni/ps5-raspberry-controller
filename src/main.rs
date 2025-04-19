@@ -319,7 +319,7 @@ impl DualSenseController {
         };
 
         let _adv_handle = adapter.advertise(adv).await?;
-        println!("🎮 PS5 DualSense Controller Advertising");
+        println!("🎮 PS5 DualSense Controller Advertising ");
     }
 }
 
