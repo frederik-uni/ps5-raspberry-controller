@@ -5,7 +5,7 @@ use bluer::gatt::local::{
     CharacteristicRead, CharacteristicWrite, Descriptor, DescriptorRead, DescriptorWrite, Service,
 };
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -81,13 +81,14 @@ async fn main() -> bluer::Result<()> {
     });
 
     // Input Report Characteristic (Notify)
-    let (report_tx, mut report_rx) = mpsc::channel(32);
+    let (report_tx, mut report_rx) = broadcast::channel(32);
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_UUID,
         notify: Some(CharacteristicNotify {
             notify: true,
             indicate: false,
             method: CharacteristicNotifyMethod::Fun(Box::new(move |mut stream| {
+                let report_rx = report_rx.resubscribe();
                 Box::pin(async move {
                     while let Some(report) = report_rx.recv().await {
                         if let Err(e) = stream.notify(report).await {
