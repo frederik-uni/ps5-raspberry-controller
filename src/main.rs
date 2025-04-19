@@ -1,9 +1,8 @@
 use bluer::Session;
 use bluer::adv::Advertisement;
 use bluer::gatt::local::{
-    Application, Characteristic, CharacteristicDescriptorPerm, CharacteristicNotify,
-    CharacteristicNotifyMethod, CharacteristicRead, CharacteristicWrite, Descriptor,
-    DescriptorRead, DescriptorWrite, Service,
+    Application, Characteristic, CharacteristicNotify, CharacteristicNotifyMethod,
+    CharacteristicRead, CharacteristicWrite, Descriptor, DescriptorRead, DescriptorWrite, Service,
 };
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -89,15 +88,13 @@ async fn main() -> bluer::Result<()> {
             notify: true,
             indicate: false,
             method: CharacteristicNotifyMethod::Fun(Box::new(move |mut stream| {
-                let mut report_rx = report_rx.clone();
                 Box::pin(async move {
                     while let Some(report) = report_rx.recv().await {
-                        if let Err(e) = stream.send(report).await {
+                        if let Err(e) = stream.notify(report).await {
                             eprintln!("Failed to send notification: {}", e);
                             break;
                         }
                     }
-                    Ok(())
                 })
             })),
             _non_exhaustive: (),
