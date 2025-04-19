@@ -1,15 +1,15 @@
 use std::{env, sync::Arc};
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 use bluetooth::DualSenseController;
-#[cfg(target_os = "macos")]
+#[cfg(not(target_os = "linux"))]
 use bluetooth_faker::DualSenseController;
 use hidapi::HidApi;
 use interfaces::{bluetooth::ControllerState, internal::ControllerStateInternal, usb::ParsedInput};
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 mod bluetooth;
-#[cfg(target_os = "macos")]
+#[cfg(not(target_os = "linux"))]
 mod bluetooth_faker;
 pub mod interfaces;
 

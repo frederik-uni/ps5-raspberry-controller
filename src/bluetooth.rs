@@ -215,7 +215,7 @@ impl DualSenseController {
         let report_tx = self.report_tx.clone();
         loop {
             let state = self.state.lock().unwrap();
-            let _ = report_tx.send(state.to_bytes());
+            let _ = report_tx.send(state.to_bytes().to_vec());
             sleep(Duration::from_millis(16)).await
         }
     }

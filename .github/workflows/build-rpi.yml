@@ -30,7 +30,7 @@ jobs:
           shell: bash
           run: |
             apt-get update
-            apt-get install -y curl build-essential pkg-config libdbus-1-dev
+            apt-get install -y curl build-essential pkg-config libdbus-1-dev libudev-dev
 
             # Install Rust (stable)
             curl https://sh.rustup.rs -sSf | sh -s -- -y
