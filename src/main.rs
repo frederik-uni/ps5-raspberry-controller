@@ -1,10 +1,10 @@
+use bluer::Adapter;
 use bluer::adv::Advertisement;
-use bluer::gatt::{
-    CharacteristicWrite,
-    local::{Application, Characteristic, CharacteristicNotify, Service},
-};
-use bluer::{Adapter, Address};
+use bluer::gatt::CharacteristicFlags;
+use bluer::gatt::local::{Application, Characteristic, Service};
+use std::collections::BTreeMap;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -40,38 +40,36 @@ async fn main() -> bluer::Result<()> {
         adapter.is_powered().await?
     );
 
-    let mut app = Application::new();
+    let mut app = Application {
+        services: BTreeMap::new(),
+        ..Default::default()
+    };
 
     let mut service = Service::new(HID_SERVICE_UUID, true);
 
-    let report_map_char = Characteristic::new(
-        HID_REPORT_MAP_UUID,
-        bluer::gatt::local::CharacteristicFlags::READ,
-    )
-    .with_value(HID_REPORT_MAP.to_vec());
+    let report_map_char = Characteristic::new(HID_REPORT_MAP_UUID, CharacteristicFlags::READ)
+        .with_value(HID_REPORT_MAP.to_vec());
 
     service.add_characteristic(report_map_char);
 
-    let (tx, mut rx) = CharacteristicNotify::new();
-    let input_report_char = Characteristic::new(
-        HID_REPORT_UUID,
-        bluer::gatt::local::CharacteristicFlags::NOTIFY,
-    )
-    .with_notify(tx);
+    let (tx, mut rx) = mpsc::channel(1);
+    let input_report_char =
+        Characteristic::new(HID_REPORT_UUID, CharacteristicFlags::NOTIFY).with_notify(tx);
 
     service.add_characteristic(input_report_char);
 
     app.add_service(service);
 
-    let gatt = adapter.gatt_application();
-    gatt.insert_application("/gamepad".into(), app).await?;
+    let _app_handle = adapter.serve_gatt_application(app).await?;
 
-    let adv = adapter.advertisement().await?;
-    adv.set_service_uuids(vec![HID_SERVICE_UUID]).await?;
-    adv.set_local_name(Some("PS5 Gamepad")).await?;
-    adv.set_discoverable(true).await?;
-    adv.set_connectable(true).await?;
-    adv.activate().await?;
+    let adv = Advertisement {
+        service_uuids: vec![HID_SERVICE_UUID].into_iter().collect(),
+        local_name: Some("PS5 Gamepad".to_string()),
+        discoverable: Some(true),
+        ..Advertisement::default()
+    };
+
+    let _adv_handle = adapter.advertise(adv).await?;
 
     println!("🔵 Advertising as BLE HID gamepad...");
 
@@ -79,9 +77,9 @@ async fn main() -> bluer::Result<()> {
     while let Some(notifier) = rx.recv().await {
         println!("🔔 Client connected, starting input loop");
         loop {
-            let report: Vec<u8> = if toggle { vec![0x02] } else { vec![0x00] };
+            let report = if toggle { vec![0x02] } else { vec![0x00] };
             toggle = !toggle;
-            notifier.notify_value(report).await?;
+            notifier.notify_value(report.clone()).await?;
             sleep(Duration::from_secs(1)).await;
         }
     }
