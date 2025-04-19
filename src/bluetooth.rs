@@ -1,4 +1,5 @@
 use bluer::Session;
+use bluer::UuidExt;
 use bluer::adv::Advertisement;
 use bluer::gatt::local::{
     Application, Characteristic, CharacteristicNotify, CharacteristicNotifyMethod,
