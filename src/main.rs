@@ -90,7 +90,7 @@ async fn main() -> bluer::Result<()> {
             method: CharacteristicNotifyMethod::Fun(Box::new(move |mut stream| {
                 let report_rx = report_rx.resubscribe();
                 Box::pin(async move {
-                    while let Some(report) = report_rx.recv().await {
+                    while let Ok(report) = report_rx.recv().await {
                         if let Err(e) = stream.notify(report).await {
                             eprintln!("Failed to send notification: {}", e);
                             break;
@@ -140,7 +140,7 @@ async fn main() -> bluer::Result<()> {
         state = !state;
         let report = vec![if state { 0x01 } else { 0x00 }];
 
-        if let Err(e) = report_tx.send(report).await {
+        if let Err(e) = report_tx.send(report) {
             eprintln!("Failed to queue notification: {}", e);
         }
         sleep(Duration::from_secs(1)).await;
