@@ -1,4 +1,4 @@
-name: Build for Raspberry Pi (32-bit)
+name: Build for Raspberry Pi Zero (ARMv6)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Native ARMv7 build in arm32v7/debian
+    name: Native ARMv6 build in balenalib/rpi-debian
     runs-on: ubuntu-latest
 
     steps:
@@ -19,12 +19,12 @@ jobs:
         with:
           platforms: arm
 
-      - name: 🐳 Run arm32v7 container with QEMU
+      - name: 🐳 Run ARMv6 container with QEMU
         uses: addnab/docker-run-action@v3
         with:
-          image: arm32v7/debian:bullseye
+          image: balenalib/rpi-debian:bullseye
           options: >-
-            --platform linux/arm/v7
+            --platform linux/arm/v6
             -v ${{ github.workspace }}:/github/workspace
             -w /github/workspace
           shell: bash
@@ -32,19 +32,20 @@ jobs:
             apt-get update
             apt-get install -y curl build-essential pkg-config libdbus-1-dev libudev-dev
 
-            # Install Rust (stable)
+            # Install Rust
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             export PATH="$HOME/.cargo/bin:$PATH"
-            rustup target add armv7-unknown-linux-gnueabihf
+            rustup target add arm-unknown-linux-gnueabihf
 
-            # Build the project
+            # Build the project for ARMv6
             export PKG_CONFIG_ALLOW_CROSS=1
             export PKG_CONFIG_SYSROOT_DIR=/
             export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig
-            cargo build --release --target=armv7-unknown-linux-gnueabihf
+            export RUSTFLAGS="-C target-cpu=arm1176jzf-s -C target-feature=-neon"
+            cargo build --release --target=arm-unknown-linux-gnueabihf
 
       - name: 📤 Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: rpi-binary
-          path: target/armv7-unknown-linux-gnueabihf/release/bt_hid_gamepad
+          path: target/arm-unknown-linux-gnueabihf/release/bt_hid_gamepad
