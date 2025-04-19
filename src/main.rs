@@ -2,17 +2,21 @@ use bluer::Session;
 use bluer::adv::Advertisement;
 use bluer::gatt::local::{
     Application, Characteristic, CharacteristicDescriptorPerm, CharacteristicNotify,
-    CharacteristicNotifyMethod, CharacteristicRead, Descriptor, Service,
+    CharacteristicNotifyMethod, CharacteristicRead, CharacteristicWrite, Descriptor,
+    DescriptorRead, DescriptorWrite, Service,
 };
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-const HID_SERVICE_UUID: Uuid = Uuid::from_u128(0x1812_0000_0000_1000_8000_00805f9b34fb);
-const HID_REPORT_UUID: Uuid = Uuid::from_u128(0x2a4d_0000_0000_1000_8000_00805f9b34fb);
-const HID_REPORT_MAP_UUID: Uuid = Uuid::from_u128(0x2a4b_0000_0000_1000_8000_00805f9b34fb);
-const CCCD_UUID: Uuid = Uuid::from_u128(0x2902_0000_0000_1000_8000_00805f9b34fb);
+// Correct UUIDs (16-bit UUIDs in proper 128-bit format)
+const HID_SERVICE_UUID: Uuid = Uuid::from_u128(0x00001812_0000_1000_8000_00805f9b34fb);
+const HID_REPORT_UUID: Uuid = Uuid::from_u128(0x00002A4D_0000_1000_8000_00805f9b34fb);
+const HID_REPORT_MAP_UUID: Uuid = Uuid::from_u128(0x00002A4B_0000_1000_8000_00805f9b34fb);
+const HID_PROTOCOL_MODE_UUID: Uuid = Uuid::from_u128(0x00002A4E_0000_1000_8000_00805f9b34fb);
+const HID_INFORMATION_UUID: Uuid = Uuid::from_u128(0x00002A4A_0000_1000_8000_00805f9b34fb);
+const CCCD_UUID: Uuid = Uuid::from_u128(0x00002902_0000_1000_8000_00805f9b34fb);
 
 const HID_REPORT_MAP: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop)
@@ -36,47 +40,77 @@ async fn main() -> bluer::Result<()> {
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
 
-    // Create HID Service
+    // Create HID Service with mandatory characteristics
     let mut service = Service {
         uuid: HID_SERVICE_UUID,
         primary: true,
         ..Default::default()
     };
 
-    // Report Map Characteristic (Readable)
+    // Protocol Mode Characteristic (Mandatory)
+    service.characteristics.push(Characteristic {
+        uuid: HID_PROTOCOL_MODE_UUID,
+        read: Some(CharacteristicRead {
+            read: true,
+            ..Default::default()
+        }),
+        write: Some(CharacteristicWrite {
+            write: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    // HID Information Characteristic (Mandatory)
+    service.characteristics.push(Characteristic {
+        uuid: HID_INFORMATION_UUID,
+        read: Some(CharacteristicRead {
+            read: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    // Report Map Characteristic
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_MAP_UUID,
         read: Some(CharacteristicRead {
             read: true,
-            encrypt_read: false,
-            encrypt_authenticated_read: false,
-            secure_read: false,
-            fun: Box::new(|| Box::pin(async { Ok(HID_REPORT_MAP.to_vec()) })),
-            _non_exhaustive: (),
+            ..Default::default()
         }),
         ..Default::default()
     });
 
     // Input Report Characteristic (Notify)
-    let (tx, _) = mpsc::channel(32);
-    let report_tx = tx.clone();
+    let (report_tx, mut report_rx) = mpsc::channel(32);
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_UUID,
         notify: Some(CharacteristicNotify {
             notify: true,
             indicate: false,
-            method: CharacteristicNotifyMethod::Channel(tx),
+            method: CharacteristicNotifyMethod::Fun(Box::new(move |mut stream| {
+                let mut report_rx = report_rx.clone();
+                Box::pin(async move {
+                    while let Some(report) = report_rx.recv().await {
+                        if let Err(e) = stream.send(report).await {
+                            eprintln!("Failed to send notification: {}", e);
+                            break;
+                        }
+                    }
+                    Ok(())
+                })
+            })),
             _non_exhaustive: (),
         }),
         descriptors: vec![Descriptor {
             uuid: CCCD_UUID,
-            read: Some(CharacteristicDescriptorPerm {
-                permitted: true,
-                requires_encryption: false,
+            read: Some(DescriptorRead {
+                read: true,
+                ..Default::default()
             }),
-            write: Some(CharacteristicDescriptorPerm {
-                permitted: true,
-                requires_encryption: false,
+            write: Some(DescriptorWrite {
+                write: true,
+                ..Default::default()
             }),
             ..Default::default()
         }],
@@ -108,12 +142,9 @@ async fn main() -> bluer::Result<()> {
         state = !state;
         let report = vec![if state { 0x01 } else { 0x00 }];
 
-        match report_tx.send(report).await {
-            Ok(_) => sleep(Duration::from_secs(1)).await,
-            Err(e) => {
-                eprintln!("Notification failed: {}", e);
-                sleep(Duration::from_secs(1)).await;
-            }
+        if let Err(e) = report_tx.send(report).await {
+            eprintln!("Failed to queue notification: {}", e);
         }
+        sleep(Duration::from_secs(1)).await;
     }
 }
