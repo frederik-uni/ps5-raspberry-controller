@@ -4,8 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-zbus = "5.5.0"
-bluer = { version = "0.17.3", features = ["bluetoothd"] }
 tokio = { version = "1", features = ["full"] }
 uuid = "1"
 bitflags = "2.9"
+hidapi = "2"
+
+[target."cfg(not(target_os = \"macos\"))".dependencies]
+zbus = "5.5.0"
+bluer = { version = "0.17.3", features = ["bluetoothd"] }
