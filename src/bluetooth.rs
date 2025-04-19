@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::interfaces::bluetooth::ControllerState;
 
 // Correct UUIDs (16-bit UUIDs in proper 128-bit format)
-const DUALSHOCK_SERVICE_UUID: Uuid = Uuid::from_u128(0x00040000_0000_1000_8000_00805f9b34fb);
+const DUALSHOCK_SERVICE_UUID: Uuid = Uuid::from_u16(0x1812);
 const HID_REPORT_UUID: Uuid = Uuid::from_u128(0x00002A4D_0000_1000_8000_00805f9b34fb);
 const CCCD_UUID: Uuid = Uuid::from_u128(0x00002902_0000_1000_8000_00805f9b34fb);
 const REPORT_CHARACTERISTIC_UUID: Uuid = Uuid::from_u128(0x00040001_0000_1000_8000_00805f9b34fb);
@@ -179,11 +179,6 @@ const HID_REPORT_MAP: &[u8] = &[
     0x00, // Unknown (bTag: 0x00, bType: 0x00)
 ];
 
-#[tokio::main]
-async fn main() -> bluer::Result<()> {
-    loop {}
-}
-
 pub struct DualSenseController {
     state: Arc<Mutex<ControllerState>>,
     report_tx: Arc<Mutex<broadcast::Sender<Vec<u8>>>>,
@@ -306,7 +301,7 @@ impl DualSenseController {
         // Configure Advertising
         let adv = Advertisement {
             service_uuids: vec![DUALSHOCK_SERVICE_UUID].into_iter().collect(),
-            local_name: Some("Wireless Controller".into()),
+            local_name: Some("Controller".into()),
             discoverable: Some(true),
             manufacturer_data: vec![
                 (0x054C, vec![0x09, 0x05, 0xC0, 0xCA, 0x2C, 0x00]), // Sony's company ID (0x054C)
