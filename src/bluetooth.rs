@@ -186,7 +186,7 @@ async fn main() -> bluer::Result<()> {
 
 pub struct DualSenseController {
     state: Arc<Mutex<ControllerState>>,
-    report_tx: broadcast::Sender<Vec<u8>>,
+    report_tx: Arc<Mutex<broadcast::Sender<Vec<u8>>>>,
 }
 
 impl DualSenseController {
@@ -194,7 +194,7 @@ impl DualSenseController {
         let (report_tx, _) = broadcast::channel(32);
         Self {
             state: Arc::new(Mutex::new(ControllerState::default())),
-            report_tx,
+            report_tx: Arc::new(Mutex::new(report_tx)),
         }
     }
 
@@ -212,10 +212,12 @@ impl DualSenseController {
     }
 
     pub async fn run_report_loop(&self) {
-        let report_tx = self.report_tx.clone();
+        let report_tx = self.report_tx.lock().unwrap().clone();
         loop {
-            let state = self.state.lock().unwrap();
-            let _ = report_tx.send(state.to_bytes().to_vec());
+            {
+                let state = self.state.lock().unwrap();
+                let _ = report_tx.send(state.to_bytes().to_vec());
+            }
             sleep(Duration::from_millis(16)).await
         }
     }
@@ -251,14 +253,14 @@ impl DualSenseController {
             uuid: REPORT_MAP_CHARACTERISTIC_UUID,
             read: Some(CharacteristicRead {
                 read: true,
-                fun: Box::new(|| Box::pin(async move { Ok(HID_REPORT_MAP.to_vec()) })),
+                fun: Box::new(|_| Box::pin(async move { Ok(HID_REPORT_MAP.to_vec()) })),
                 ..Default::default()
             }),
             ..Default::default()
         });
 
         // Input Report Characteristic (Notify)
-        let report_rx = self.report_tx.subscribe();
+        let report_rx = self.report_tx.lock().unwrap().subscribe();
         service.characteristics.push(Characteristic {
             uuid: REPORT_CHARACTERISTIC_UUID,
             notify: Some(CharacteristicNotify {
@@ -317,5 +319,6 @@ impl DualSenseController {
 
         let _adv_handle = adapter.advertise(adv).await?;
         println!("🎮 PS5 DualSense Controller Advertising ");
+        Ok(())
     }
 }

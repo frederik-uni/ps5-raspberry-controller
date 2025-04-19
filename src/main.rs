@@ -15,7 +15,6 @@ pub mod interfaces;
 
 async fn init_bluetooth() -> Arc<DualSenseController> {
     let controller = Arc::new(DualSenseController::new());
-
     controller.initialize_bluetooth().await.unwrap();
 
     let report_controller = controller.clone();
@@ -70,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match device.read(&mut buf) {
                 Ok(_) => {
                     let parsed = ControllerStateInternal::from(ParsedInput::from_ps5_buf(&buf));
+                    dbg!(&parsed);
                     controller.update_state(move |state| {
                         *state = ControllerState::from(parsed);
                     });

@@ -2,7 +2,7 @@ use std::fmt;
 
 use bitflags::bitflags;
 
-use super::internal::{Axis2D, Axis3D, Buttons, ControllerStateInternal};
+use super::internal::{Axis2D, Axis3D, Buttons, ControllerStateInternal, PowerState};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -121,7 +121,7 @@ impl ParsedInput {
             shoulder_buttons: ShoulderButtons::from_bits_truncate(buf[6]),
             system_buttons: SystemButtons::from_bits_truncate(buf[7] & !SystemButtons::MUTE.bits()),
             ts: u16::from_le_bytes([buf[10], buf[11]]) as u32,
-            battery_level: buf[12] & 0x0F,
+            battery_level: buf[12],
             gx: i16::from_le_bytes([buf[13], buf[14]]),
             gy: i16::from_le_bytes([buf[15], buf[16]]),
             gz: i16::from_le_bytes([buf[17], buf[18]]),
@@ -156,14 +156,14 @@ impl ParsedInput {
             face_buttons: FaceButtons::from_bits_truncate(buf[8]),
             shoulder_buttons: ShoulderButtons::from_bits_truncate(buf[9]),
             system_buttons: SystemButtons::from_bits_truncate(buf[10]),
-            battery_level: buf[63] & 0x0F,
-            ts: u32::from_le_bytes([buf[31], buf[32], buf[33], buf[34]]),
-            gx: i16::from_le_bytes([buf[19], buf[20]]),
-            gy: i16::from_le_bytes([buf[21], buf[22]]),
-            gz: i16::from_le_bytes([buf[23], buf[24]]),
-            ax: i16::from_le_bytes([buf[25], buf[26]]),
-            ay: i16::from_le_bytes([buf[27], buf[28]]),
-            az: i16::from_le_bytes([buf[29], buf[30]]),
+            battery_level: buf[53],
+            ts: u32::from_le_bytes([buf[28], buf[29], buf[30], buf[31]]),
+            gx: i16::from_le_bytes([buf[16], buf[17]]),
+            gy: i16::from_le_bytes([buf[18], buf[19]]),
+            gz: i16::from_le_bytes([buf[20], buf[21]]),
+            ax: i16::from_le_bytes([buf[22], buf[23]]),
+            ay: i16::from_le_bytes([buf[24], buf[25]]),
+            az: i16::from_le_bytes([buf[26], buf[27]]),
         }
     }
 }
@@ -198,7 +198,8 @@ impl From<ParsedInput> for ControllerStateInternal {
                 z: value.az,
             },
             ts: value.ts,
-            battery: value.battery_level,
+            battery: value.battery_level & 0x0F,
+            power_state: PowerState::from_bits_truncate((value.battery_level >> 4) & 0x0F),
         }
     }
 }

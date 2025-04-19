@@ -25,6 +25,18 @@ bitflags! {
     }
 }
 
+bitflags! {
+    #[derive(Debug)]
+    pub struct PowerState: u8 {
+        const Discharging         = 0x00; // Use PowerPercent
+        const Charging            = 0x01; // Use PowerPercent
+        const Complete            = 0x02; // PowerPercent not valid? assume 100%?
+        const AbnormalVoltage     = 0x0A; // PowerPercent not valid?
+        const AbnormalTemperature = 0x0B; // PowerPercent not valid?
+        const ChargingError       = 0x0F; // PowerPercent not valid?
+    }
+}
+
 #[derive(Debug)]
 pub struct Axis2D {
     pub x: u8,
@@ -45,6 +57,7 @@ pub struct ControllerStateInternal {
     pub gyro: Axis3D,
     pub accel: Axis3D,
     pub battery: u8,
+    pub power_state: PowerState,
     pub ts: u32,
     pub button: Buttons,
     pub l2_axis: u8,
