@@ -81,14 +81,14 @@ async fn main() -> bluer::Result<()> {
     });
 
     // Input Report Characteristic (Notify)
-    let (report_tx, mut report_rx) = broadcast::channel(32);
+    let (report_tx, report_rx) = broadcast::channel(32);
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_UUID,
         notify: Some(CharacteristicNotify {
             notify: true,
             indicate: false,
             method: CharacteristicNotifyMethod::Fun(Box::new(move |mut stream| {
-                let report_rx = report_rx.resubscribe();
+                let mut report_rx = report_rx.resubscribe();
                 Box::pin(async move {
                     while let Ok(report) = report_rx.recv().await {
                         if let Err(e) = stream.notify(report).await {
