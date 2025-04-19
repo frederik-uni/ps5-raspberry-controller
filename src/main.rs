@@ -1,8 +1,6 @@
-use bluer::Adapter;
+use bluer::Session;
 use bluer::adv::Advertisement;
-use bluer::gatt::CharacteristicFlags;
-use bluer::gatt::local::{Application, Characteristic, Service};
-use std::collections::BTreeMap;
+use bluer::gatt::local::{Application, Characteristic, CharacteristicFlags, Service};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -30,56 +28,84 @@ const HID_REPORT_MAP: &[u8] = &[
 
 #[tokio::main]
 async fn main() -> bluer::Result<()> {
-    let session = bluer::Session::new().await?;
+    let session = Session::new().await?;
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
 
-    println!(
-        "Adapter {} powered: {}",
-        adapter.name(),
-        adapter.is_powered().await?
-    );
-
-    let mut app = Application {
-        services: BTreeMap::new(),
+    // Create HID Service
+    let mut service = Service {
+        uuid: HID_SERVICE_UUID,
+        primary: true,
         ..Default::default()
     };
 
-    let mut service = Service::new(HID_SERVICE_UUID, true);
+    // Report Map Characteristic (Readable)
+    service.characteristics.push(Characteristic {
+        uuid: HID_REPORT_MAP_UUID,
+        read: Some(CharacteristicRead {
+            value: HID_REPORT_MAP.to_vec(),
+            permitted: true,
+            requires_encryption: false,
+        }),
+        ..Default::default()
+    });
 
-    let report_map_char = Characteristic::new(HID_REPORT_MAP_UUID, CharacteristicFlags::READ)
-        .with_value(HID_REPORT_MAP.to_vec());
+    // Input Report Characteristic (Notify)
+    let (tx, mut rx) = mpsc::channel(32);
+    service.characteristics.push(Characteristic {
+        uuid: HID_REPORT_UUID,
+        notify: Some(CharacteristicNotify {
+            sender: tx,
+            permitted: true,
+            requires_encryption: false,
+        }),
+        descriptors: vec![Descriptor {
+            uuid: CCCD_UUID,
+            read: Some(DescriptorRead {
+                permitted: true,
+                requires_encryption: false,
+            }),
+            write: Some(DescriptorWrite {
+                permitted: true,
+                requires_encryption: false,
+            }),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
 
-    service.add_characteristic(report_map_char);
-
-    let (tx, mut rx) = mpsc::channel(1);
-    let input_report_char =
-        Characteristic::new(HID_REPORT_UUID, CharacteristicFlags::NOTIFY).with_notify(tx);
-
-    service.add_characteristic(input_report_char);
-
-    app.add_service(service);
+    // Create GATT Application
+    let app = Application {
+        services: vec![service],
+        ..Default::default()
+    };
 
     let _app_handle = adapter.serve_gatt_application(app).await?;
 
+    // Configure Advertising
     let adv = Advertisement {
         service_uuids: vec![HID_SERVICE_UUID].into_iter().collect(),
-        local_name: Some("PS5 Gamepad".to_string()),
+        local_name: Some("PS5 Gamepad".into()),
         discoverable: Some(true),
-        ..Advertisement::default()
+        ..Default::default()
     };
 
     let _adv_handle = adapter.advertise(adv).await?;
+    println!("🕹 BLE HID Gamepad Advertising");
 
-    println!("🔵 Advertising as BLE HID gamepad...");
-
-    let mut toggle = true;
-    while let Some(notifier) = rx.recv().await {
-        println!("🔔 Client connected, starting input loop");
+    // Simulation loop
+    let mut state = false;
+    while let Some(notify_tx) = rx.recv().await {
+        println!("Client connected");
         loop {
-            let report = if toggle { vec![0x02] } else { vec![0x00] };
-            toggle = !toggle;
-            notifier.notify_value(report.clone()).await?;
+            state = !state;
+            let report = vec![if state { 0x01 } else { 0x00 }];
+
+            if let Err(e) = notify_tx.send(report.clone()).await {
+                eprintln!("Notification failed: {}", e);
+                break;
+            }
+
             sleep(Duration::from_secs(1)).await;
         }
     }
