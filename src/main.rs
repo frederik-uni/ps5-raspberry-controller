@@ -1,7 +1,8 @@
 use bluer::Session;
 use bluer::adv::Advertisement;
 use bluer::gatt::local::{
-    AccessPerm, Application, Characteristic, Descriptor, NotifyValue, ReadValue, Service,
+    Application, Characteristic, CharacteristicDescriptorPerm, CharacteristicNotify,
+    CharacteristicNotifyMethod, CharacteristicRead, Descriptor, Service,
 };
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -45,30 +46,35 @@ async fn main() -> bluer::Result<()> {
     // Report Map Characteristic (Readable)
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_MAP_UUID,
-        read: Some(ReadValue {
-            value: HID_REPORT_MAP.to_vec(),
-            permitted: true,
-            requires_encryption: false,
+        read: Some(CharacteristicRead {
+            read: true,
+            encrypt_read: false,
+            encrypt_authenticated_read: false,
+            secure_read: false,
+            fun: Box::new(|| Box::pin(async { Ok(HID_REPORT_MAP.to_vec()) })),
+            _non_exhaustive: (),
         }),
         ..Default::default()
     });
 
     // Input Report Characteristic (Notify)
-    let (tx, mut rx) = mpsc::channel(32);
+    let (tx, _) = mpsc::channel(32);
+    let report_tx = tx.clone();
     service.characteristics.push(Characteristic {
         uuid: HID_REPORT_UUID,
-        notify: Some(NotifyValue {
-            sender: tx,
-            permitted: true,
-            requires_encryption: false,
+        notify: Some(CharacteristicNotify {
+            notify: true,
+            indicate: false,
+            method: CharacteristicNotifyMethod::Channel(tx),
+            _non_exhaustive: (),
         }),
         descriptors: vec![Descriptor {
             uuid: CCCD_UUID,
-            read: Some(AccessPerm {
+            read: Some(CharacteristicDescriptorPerm {
                 permitted: true,
                 requires_encryption: false,
             }),
-            write: Some(AccessPerm {
+            write: Some(CharacteristicDescriptorPerm {
                 permitted: true,
                 requires_encryption: false,
             }),
@@ -98,20 +104,16 @@ async fn main() -> bluer::Result<()> {
 
     // Simulation loop
     let mut state = false;
-    while let Some(notify_tx) = rx.recv().await {
-        println!("Client connected");
-        loop {
-            state = !state;
-            let report = vec![if state { 0x01 } else { 0x00 }];
+    loop {
+        state = !state;
+        let report = vec![if state { 0x01 } else { 0x00 }];
 
-            if let Err(e) = notify_tx.send(report.clone()).await {
+        match report_tx.send(report).await {
+            Ok(_) => sleep(Duration::from_secs(1)).await,
+            Err(e) => {
                 eprintln!("Notification failed: {}", e);
-                break;
+                sleep(Duration::from_secs(1)).await;
             }
-
-            sleep(Duration::from_secs(1)).await;
         }
     }
-
-    Ok(())
 }
