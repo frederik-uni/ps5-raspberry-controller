@@ -14,6 +14,11 @@ jobs:
       - name: 🛎️ Checkout repository
         uses: actions/checkout@v4
 
+      - name: ⚙️ Set up QEMU for ARM emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+
       - name: 🐳 Run arm32v7 container with QEMU
         uses: addnab/docker-run-action@v3
         with:
