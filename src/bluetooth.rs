@@ -1,8 +1,6 @@
 use bluer::Session;
 use bluer::adv::Advertisement;
-use bluer::agent::{
-    Agent, AuthorizeResponse, ConfirmationResponse, PasskeyResponse, PinCodeResponse,
-};
+use bluer::agent::Agent;
 use bluer::gatt::local::{
     Application, Characteristic, CharacteristicNotify, CharacteristicNotifyMethod,
     CharacteristicRead, CharacteristicWrite, Descriptor, DescriptorRead, DescriptorWrite, Service,
@@ -187,33 +185,6 @@ const fn bluetooth_uuid_from_u16(uuid16: u16) -> Uuid {
     Uuid::from_u128(((uuid16 as u128) << 96) | BASE)
 }
 
-struct PermissiveAgent;
-
-#[bluer::async_trait]
-impl Agent for PermissiveAgent {
-    async fn request_pin_code(&self, _device: bluer::Device) -> PinCodeResponse {
-        PinCodeResponse::None
-    }
-
-    async fn request_passkey(&self, _device: bluer::Device) -> PasskeyResponse {
-        PasskeyResponse::Passkey(0)
-    }
-
-    async fn display_passkey(&self, _device: bluer::Device, _passkey: u32, _entered: u16) {}
-
-    async fn request_confirmation(
-        &self,
-        _device: bluer::Device,
-        _passkey: u32,
-    ) -> ConfirmationResponse {
-        ConfirmationResponse::Confirm
-    }
-
-    async fn authorize(&self, _device: bluer::Device) -> AuthorizeResponse {
-        AuthorizeResponse::Allow
-    }
-}
-
 pub struct DualSenseController {
     state: Arc<Mutex<ControllerState>>,
     report_tx: Arc<Mutex<broadcast::Sender<Vec<u8>>>>,
@@ -254,10 +225,29 @@ impl DualSenseController {
 
     pub async fn initialize_bluetooth(&self) -> bluer::Result<()> {
         let session = Session::new().await?;
+        session.register_agent(Agent {
+            request_default: true,
+            request_pin_code: Some(Arc::new(|_device| {
+                Box::pin(async { Ok("0000".to_string()) }) // auto-accept PIN
+            })),
+            request_passkey: Some(Arc::new(|_device| {
+                Box::pin(async { Ok(123456) }) // auto-accept passkey
+            })),
+            request_confirmation: Some(Arc::new(|_device, _passkey| {
+                Box::pin(async { Ok(()) }) // auto-confirm pairing
+            })),
+            request_authorization: Some(Arc::new(|_device| {
+                Box::pin(async { Ok(()) }) // auto-authorize device
+            })),
+            authorize_service: Some(Arc::new(|_device, _uuid| {
+                Box::pin(async { Ok(()) }) // auto-authorize service
+            })),
+            display_pin_code: None,
+            display_passkey: None,
+            _non_exhaustive: (),
+        });
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
-        adapter.set_agent(PermissiveAgent).await?;
-        adapter.set_agent_default().await?;
         // Create HID Service with mandatory characteristics
         let mut service = Service {
             uuid: DUALSHOCK_SERVICE_UUID,
