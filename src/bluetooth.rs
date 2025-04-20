@@ -1,9 +1,13 @@
 use bluer::Session;
 use bluer::adv::Advertisement;
+use bluer::agent::{
+    Agent, AuthorizeResponse, ConfirmationResponse, PasskeyResponse, PinCodeResponse,
+};
 use bluer::gatt::local::{
     Application, Characteristic, CharacteristicNotify, CharacteristicNotifyMethod,
     CharacteristicRead, CharacteristicWrite, Descriptor, DescriptorRead, DescriptorWrite, Service,
 };
+use futures_util::StreamExt;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -183,6 +187,33 @@ const fn bluetooth_uuid_from_u16(uuid16: u16) -> Uuid {
     Uuid::from_u128(((uuid16 as u128) << 96) | BASE)
 }
 
+struct PermissiveAgent;
+
+#[bluer::async_trait]
+impl Agent for PermissiveAgent {
+    async fn request_pin_code(&self, _device: bluer::Device) -> PinCodeResponse {
+        PinCodeResponse::None
+    }
+
+    async fn request_passkey(&self, _device: bluer::Device) -> PasskeyResponse {
+        PasskeyResponse::Passkey(0)
+    }
+
+    async fn display_passkey(&self, _device: bluer::Device, _passkey: u32, _entered: u16) {}
+
+    async fn request_confirmation(
+        &self,
+        _device: bluer::Device,
+        _passkey: u32,
+    ) -> ConfirmationResponse {
+        ConfirmationResponse::Confirm
+    }
+
+    async fn authorize(&self, _device: bluer::Device) -> AuthorizeResponse {
+        AuthorizeResponse::Allow
+    }
+}
+
 pub struct DualSenseController {
     state: Arc<Mutex<ControllerState>>,
     report_tx: Arc<Mutex<broadcast::Sender<Vec<u8>>>>,
@@ -225,7 +256,8 @@ impl DualSenseController {
         let session = Session::new().await?;
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
-        adapter.set_pairable_timeout(0).await?;
+        adapter.set_agent(PermissiveAgent).await?;
+        adapter.set_agent_default().await?;
         // Create HID Service with mandatory characteristics
         let mut service = Service {
             uuid: DUALSHOCK_SERVICE_UUID,
@@ -318,38 +350,30 @@ impl DualSenseController {
 
         let _adv_handle = adapter.advertise(adv).await?;
         println!("🎮 PS5 DualSense Controller Advertising ");
-        let device_events = adapter.events().await?;
-        let mut device_events_stream = device_events.filter_map(|evt| async move {
-            match evt {
-                bluer::AdapterEvent::DeviceAdded(addr) => Some(addr),
-                _ => None,
-            }
-        });
-
+        let mut device_events = adapter.discover_devices().await?;
         println!("Waiting for device connection...");
 
-        // Wait for a device to connect
-        let connected_device_addr = device_events_stream
-            .next()
-            .await
-            .ok_or_else(|| bluer::Error::Failed("Device event stream ended unexpectedly".into()))?;
+        while let Some(evt) = device_events.next().await {
+            match evt {
+                bluer::AdapterEvent::DeviceAdded(addr) => {
+                    let device = adapter.device(addr)?;
+                    device.set_trusted(true).await?;
 
-        // Get the connected device and register for property changes
-        let device = adapter.device(connected_device_addr)?;
+                    println!("Device connected: {}", addr);
+                    println!("Device name: {:?}", device.name().await?);
 
-        println!("Device connected: {}", connected_device_addr);
-        println!("Device name: {:?}", device.name().await?);
+                    // Wait for GATT connection
+                    while !device.is_connected().await? {
+                        sleep(Duration::from_millis(100)).await;
+                    }
 
-        // Wait for the GATT connection to be established
-        println!("Waiting for GATT connection to be established...");
-        loop {
-            if device.is_connected().await? {
-                break;
+                    println!("GATT connection established! Ready for input.");
+                    return Ok(());
+                }
+                _ => {}
             }
-            sleep(Duration::from_millis(100)).await;
         }
-
-        println!("GATT connection established! HID controller is ready.");
+        panic!("Device not found");
         Ok(())
     }
 }
