@@ -15,18 +15,19 @@ use uuid::Uuid;
 use crate::interfaces::bluetooth::ControllerState;
 
 // Correct UUIDs (16-bit UUIDs in proper 128-bit format)
-const DUALSHOCK_SERVICE_UUID: Uuid = bluetooth_uuid_from_u16(0x1812);
-const HID_REPORT_UUID: Uuid = Uuid::from_u128(0x00002A4D_0000_1000_8000_00805f9b34fb);
-const CCCD_UUID: Uuid = Uuid::from_u128(0x00002902_0000_1000_8000_00805f9b34fb);
-const REPORT_CHARACTERISTIC_UUID: Uuid = Uuid::from_u128(0x00040001_0000_1000_8000_00805f9b34fb);
-const REPORT_MAP_CHARACTERISTIC_UUID: Uuid =
-    Uuid::from_u128(0x00040002_0000_1000_8000_00805f9b34fb);
-
+const DUALSHOCK_SERVICE_UUID: Uuid = bluetooth_uuid_from_u16(0x1812); // HID Service
+const HID_REPORT_UUID: Uuid = bluetooth_uuid_from_u16(0x2A4D); // Report
+const CCCD_UUID: Uuid = bluetooth_uuid_from_u16(0x2902); // Client Characteristic Config
+const REPORT_CHARACTERISTIC_UUID: Uuid = bluetooth_uuid_from_u16(0x2A4E); // Protocol Mode
+const REPORT_MAP_CHARACTERISTIC_UUID: Uuid = bluetooth_uuid_from_u16(0x2A4B);
 const HID_REPORT_MAP: &[u8] = &[
-    0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
+    // Global usage page
+    0x05, 0x01, // Usage Page (Generic Desktop)
     0x09, 0x05, // Usage (Game Pad)
     0xA1, 0x01, // Collection (Application)
+    // Report ID (1)
     0x85, 0x01, //   Report ID (1)
+    // Left and Right Sticks (4 bytes)
     0x09, 0x30, //   Usage (X)
     0x09, 0x31, //   Usage (Y)
     0x09, 0x32, //   Usage (Z)
@@ -35,151 +36,65 @@ const HID_REPORT_MAP: &[u8] = &[
     0x26, 0xFF, 0x00, //   Logical Maximum (255)
     0x75, 0x08, //   Report Size (8)
     0x95, 0x04, //   Report Count (4)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x09, 0x39, //   Usage (Hat switch)
+    0x81, 0x02, //   Input (Data,Var,Abs)
+    // Hat Switch + Face Buttons (1 byte)
+    0x05, 0x09, //   Usage Page (Button)
+    0x19, 0x01, //   Usage Minimum (Button 1)
+    0x29, 0x04, //   Usage Maximum (Button 4)
+    0x15, 0x00, //   Logical Minimum (0)
+    0x25, 0x01, //   Logical Maximum (1)
+    0x75, 0x01, //   Report Size (1)
+    0x95, 0x04, //   Report Count (4)
+    0x81, 0x02, //   Input (Data,Var,Abs)
+    // Hat Switch (4 bits)
+    0x05, 0x01, //   Usage Page (Generic Desktop)
+    0x09, 0x39, //   Usage (Hat Switch)
     0x15, 0x00, //   Logical Minimum (0)
     0x25, 0x07, //   Logical Maximum (7)
     0x35, 0x00, //   Physical Minimum (0)
     0x46, 0x3B, 0x01, //   Physical Maximum (315)
-    0x65, 0x14, //   Unit (System: English Rotation, Length: Centimeter)
+    0x65, 0x14, //   Unit (Degrees)
     0x75, 0x04, //   Report Size (4)
     0x95, 0x01, //   Report Count (1)
-    0x81, 0x42, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
+    0x81, 0x42, //   Input (Data,Var,Abs,Null)
     0x65, 0x00, //   Unit (None)
+    // Buttons 5-8 (1 byte)
     0x05, 0x09, //   Usage Page (Button)
-    0x19, 0x01, //   Usage Minimum (0x01)
-    0x29, 0x0E, //   Usage Maximum (0x0E)
+    0x19, 0x05, //   Usage Minimum (Button 5)
+    0x29, 0x08, //   Usage Maximum (Button 8)
     0x15, 0x00, //   Logical Minimum (0)
     0x25, 0x01, //   Logical Maximum (1)
     0x75, 0x01, //   Report Size (1)
-    0x95, 0x0E, //   Report Count (14)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x04, //   Report Count (4)
+    0x81, 0x02, //   Input (Data,Var,Abs)
+    // Remaining buttons (byte 6)
+    0x19, 0x09, //   Usage Minimum (Button 9)
+    0x29, 0x10, //   Usage Maximum (Button 16)
+    0x95, 0x08, //   Report Count (8)
+    0x81, 0x02, //   Input (Data,Var,Abs)
+    // PS/Share/Touchpad buttons + Vendor (byte 7)
+    0x05, 0x0C, //   Usage Page (Consumer)
+    0x09, 0x01, //   Usage (Consumer Control)
+    0x15, 0x00, //   Logical Minimum (0)
+    0x25, 0x01, //   Logical Maximum (1)
+    0x75, 0x02, //   Report Size (2)
+    0x95, 0x01, //   Report Count (1)
+    0x81, 0x02, //   Input (Data,Var,Abs)
     0x75, 0x06, //   Report Size (6)
     0x95, 0x01, //   Report Count (1)
-    0x81, 0x01, //   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x01, //   Usage Page (Generic Desktop Ctrls)
-    0x09, 0x33, //   Usage (Rx)
-    0x09, 0x34, //   Usage (Ry)
+    0x81, 0x03, //   Input (Const,Var,Abs)
+    // Trigger axes (2 bytes)
+    0x05, 0x02, //   Usage Page (Simulation Controls)
+    0x09, 0xC5, //   Usage (Brake)
+    0x09, 0xC4, //   Usage (Accelerator)
     0x15, 0x00, //   Logical Minimum (0)
     0x26, 0xFF, 0x00, //   Logical Maximum (255)
     0x75, 0x08, //   Report Size (8)
     0x95, 0x02, //   Report Count (2)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x06, 0x00, 0xFF, //   Usage Page (Vendor Defined 0xFF00)
-    0x15, 0x00, //   Logical Minimum (0)
-    0x26, 0xFF, 0x00, //   Logical Maximum (255)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x4D, //   Report Count (77)
-    0x85, 0x31, //   Report ID (49)
-    0x09, 0x31, //   Usage (0x31)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x09, 0x3B, //   Usage (0x3B)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x85, 0x32, //   Report ID (50)
-    0x09, 0x32, //   Usage (0x32)
-    0x95, 0x8D, //   Report Count (-115)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x33, //   Report ID (51)
-    0x09, 0x33, //   Usage (0x33)
-    0x95, 0xCD, //   Report Count (-51)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x34, //   Report ID (52)
-    0x09, 0x34, //   Usage (0x34)
-    0x96, 0x0D, 0x01, //   Report Count (269)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x35, //   Report ID (53)
-    0x09, 0x35, //   Usage (0x35)
-    0x96, 0x4D, 0x01, //   Report Count (333)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x36, //   Report ID (54)
-    0x09, 0x36, //   Usage (0x36)
-    0x96, 0x8D, 0x01, //   Report Count (397)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x37, //   Report ID (55)
-    0x09, 0x37, //   Usage (0x37)
-    0x96, 0xCD, 0x01, //   Report Count (461)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x38, //   Report ID (56)
-    0x09, 0x38, //   Usage (0x38)
-    0x96, 0x0D, 0x02, //   Report Count (525)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x39, //   Report ID (57)
-    0x09, 0x39, //   Usage (0x39)
-    0x96, 0x22, 0x02, //   Report Count (546)
-    0x91,
-    0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x06, 0x80, 0xFF, //   Usage Page (Vendor Defined 0xFF80)
-    0x85, 0x05, //   Report ID (5)
-    0x09, 0x33, //   Usage (0x33)
-    0x95, 0x28, //   Report Count (40)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x08, //   Report ID (8)
-    0x09, 0x34, //   Usage (0x34)
-    0x95, 0x2F, //   Report Count (47)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x09, //   Report ID (9)
-    0x09, 0x24, //   Usage (0x24)
-    0x95, 0x13, //   Report Count (19)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x20, //   Report ID (32)
-    0x09, 0x26, //   Usage (0x26)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x22, //   Report ID (34)
-    0x09, 0x40, //   Usage (0x40)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x80, //   Report ID (-128)
-    0x09, 0x28, //   Usage (0x28)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x81, //   Report ID (-127)
-    0x09, 0x29, //   Usage (0x29)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x82, //   Report ID (-126)
-    0x09, 0x2A, //   Usage (0x2A)
-    0x95, 0x09, //   Report Count (9)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x83, //   Report ID (-125)
-    0x09, 0x2B, //   Usage (0x2B)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0xF1, //   Report ID (-15)
-    0x09, 0x31, //   Usage (0x31)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0xF2, //   Report ID (-14)
-    0x09, 0x32, //   Usage (0x32)
-    0x95, 0x0F, //   Report Count (15)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0xF0, //   Report ID (-16)
-    0x09, 0x30, //   Usage (0x30)
-    0x95, 0x3F, //   Report Count (63)
-    0xB1,
-    0x02, //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
+    0x81, 0x02, //   Input (Data,Var,Abs)
     0xC0, // End Collection
-    0x00, // Unknown (bTag: 0x00, bType: 0x00)
 ];
+
 const fn bluetooth_uuid_from_u16(uuid16: u16) -> Uuid {
     const BASE: u128 = 0x00000000_0000_1000_8000_00805F9B34FB;
     Uuid::from_u128(((uuid16 as u128) << 96) | BASE)
@@ -248,6 +163,7 @@ impl DualSenseController {
         });
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
+        adapter.set_alias("Pad").await?;
         // Create HID Service with mandatory characteristics
         let mut service = Service {
             uuid: DUALSHOCK_SERVICE_UUID,
