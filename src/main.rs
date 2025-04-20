@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match device.read(&mut buf) {
                 Ok(_) => {
                     let parsed = ControllerStateInternal::from(ParsedInput::from_ps5_buf(&buf));
-                    dbg!(&parsed);
+                    // dbg!(&parsed);
                     controller.update_state(move |state| {
                         *state = ControllerState::from(parsed);
                     });

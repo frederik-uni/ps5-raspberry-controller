@@ -225,7 +225,7 @@ impl DualSenseController {
         let session = Session::new().await?;
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
-
+        adapter.set_pairable_timeout(0).await?;
         // Create HID Service with mandatory characteristics
         let mut service = Service {
             uuid: DUALSHOCK_SERVICE_UUID,
@@ -299,7 +299,7 @@ impl DualSenseController {
             ..Default::default()
         };
 
-        let _app_handle = adapter.serve_gatt_application(app).await?;
+        let app_handle = adapter.serve_gatt_application(app).await?;
 
         //TODO: product id: 0x0ce6
         // Configure Advertising
@@ -318,6 +318,38 @@ impl DualSenseController {
 
         let _adv_handle = adapter.advertise(adv).await?;
         println!("🎮 PS5 DualSense Controller Advertising ");
+        let device_events = adapter.events().await?;
+        let mut device_events_stream = device_events.filter_map(|evt| async move {
+            match evt {
+                bluer::AdapterEvent::DeviceAdded(addr) => Some(addr),
+                _ => None,
+            }
+        });
+
+        println!("Waiting for device connection...");
+
+        // Wait for a device to connect
+        let connected_device_addr = device_events_stream
+            .next()
+            .await
+            .ok_or_else(|| bluer::Error::Failed("Device event stream ended unexpectedly".into()))?;
+
+        // Get the connected device and register for property changes
+        let device = adapter.device(connected_device_addr)?;
+
+        println!("Device connected: {}", connected_device_addr);
+        println!("Device name: {:?}", device.name().await?);
+
+        // Wait for the GATT connection to be established
+        println!("Waiting for GATT connection to be established...");
+        loop {
+            if device.is_connected().await? {
+                break;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+
+        println!("GATT connection established! HID controller is ready.");
         Ok(())
     }
 }
