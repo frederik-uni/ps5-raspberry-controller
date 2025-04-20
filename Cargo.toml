@@ -9,6 +9,7 @@ uuid = "1"
 bitflags = "2.9"
 hidapi = "2"
 futures-util = "0.3"
+bluer = { version = "0.17.3", features = ["bluetoothd"] }
 
 [target."cfg(target_os = \"linux\")".dependencies]
 zbus = "5.5.0"
