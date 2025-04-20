@@ -1,4 +1,4 @@
-name: Build for Raspberry Pi Zero (ARMv6)
+name: Cross-Compile for Raspberry Pi Zero (ARMv6)
 
 on:
   push:
@@ -7,44 +7,39 @@ on:
 
 jobs:
   build:
-    name: Native ARMv6 build in balenalib/rpi-debian
     runs-on: ubuntu-latest
 
     steps:
       - name: 🛎️ Checkout repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Set up QEMU for ARM emulation
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm
+      - name: ⚙️ Install Rust + ARM target
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          rustup target add arm-unknown-linux-gnueabihf
 
-      - name: 🐳 Run ARMv6 container with QEMU
-        uses: addnab/docker-run-action@v3
-        with:
-          image: balenalib/rpi-debian:bullseye
-          options: >-
-            --platform linux/arm/v6
-            -v ${{ github.workspace }}:/github/workspace
-            -w /github/workspace
-          shell: bash
-          run: |
-            apt-get update
-            apt-get install -y curl build-essential pkg-config libdbus-1-dev libudev-dev
+      - name: 🔧 Install ARM toolchain and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-linux-gnueabihf \
+            libc6-dev-armhf-cross \
+            libdbus-1-dev:armhf \
+            libudev-dev:armhf \
+            pkg-config \
+            build-essential
 
-            # Install Rust
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            export PATH="$HOME/.cargo/bin:$PATH"
-            rustup target add arm-unknown-linux-gnueabihf
+      - name: 🚧 Build for Raspberry Pi Zero
+        env:
+          PKG_CONFIG_ALLOW_CROSS: 1
+          PKG_CONFIG_PATH: /usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig
+          PKG_CONFIG_SYSROOT_DIR: /
+          RUSTFLAGS: "-C linker=arm-linux-gnueabihf-gcc -C target-cpu=arm1176jzf-s -C target-feature=-neon"
+        run: |
+          cargo build --release --target=arm-unknown-linux-gnueabihf
 
-            # Build the project for ARMv6
-            export PKG_CONFIG_ALLOW_CROSS=1
-            export PKG_CONFIG_SYSROOT_DIR=/
-            export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig
-            export RUSTFLAGS="-C target-cpu=arm1176jzf-s -C target-feature=-neon"
-            cargo build --release --target=arm-unknown-linux-gnueabihf
-
-      - name: 📤 Upload build artifact
+      - name: 📤 Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: rpi-binary
