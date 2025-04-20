@@ -1,5 +1,4 @@
 use bluer::Session;
-use bluer::UuidExt;
 use bluer::adv::Advertisement;
 use bluer::gatt::local::{
     Application, Characteristic, CharacteristicNotify, CharacteristicNotifyMethod,
@@ -14,7 +13,7 @@ use uuid::Uuid;
 use crate::interfaces::bluetooth::ControllerState;
 
 // Correct UUIDs (16-bit UUIDs in proper 128-bit format)
-const DUALSHOCK_SERVICE_UUID: Uuid = Uuid::from_u16(0x1812);
+const DUALSHOCK_SERVICE_UUID: Uuid = bluetooth_uuid_from_u16(0x1812);
 const HID_REPORT_UUID: Uuid = Uuid::from_u128(0x00002A4D_0000_1000_8000_00805f9b34fb);
 const CCCD_UUID: Uuid = Uuid::from_u128(0x00002902_0000_1000_8000_00805f9b34fb);
 const REPORT_CHARACTERISTIC_UUID: Uuid = Uuid::from_u128(0x00040001_0000_1000_8000_00805f9b34fb);
@@ -179,6 +178,10 @@ const HID_REPORT_MAP: &[u8] = &[
     0xC0, // End Collection
     0x00, // Unknown (bTag: 0x00, bType: 0x00)
 ];
+const fn bluetooth_uuid_from_u16(uuid16: u16) -> Uuid {
+    const BASE: u128 = 0x00000000_0000_1000_8000_00805F9B34FB;
+    Uuid::from_u128(((uuid16 as u128) << 96) | BASE)
+}
 
 pub struct DualSenseController {
     state: Arc<Mutex<ControllerState>>,
@@ -302,7 +305,7 @@ impl DualSenseController {
         // Configure Advertising
         let adv = Advertisement {
             service_uuids: vec![DUALSHOCK_SERVICE_UUID].into_iter().collect(),
-            local_name: Some("Controller".into()),
+            local_name: Some("Pad".into()),
             discoverable: Some(true),
             manufacturer_data: vec![
                 (0x054C, vec![0x09, 0x05, 0xC0, 0xCA, 0x2C, 0x00]), // Sony's company ID (0x054C)
