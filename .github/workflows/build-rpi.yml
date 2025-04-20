@@ -22,14 +22,24 @@ jobs:
       - name: 🔧 Install ARM toolchain and dependencies
         run: |
           sudo dpkg --add-architecture armhf
+          sudo bash -c 'cat > /etc/apt/sources.list <<EOF
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main universe multiverse restricted
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main universe multiverse restricted
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-security main universe multiverse restricted
+          deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy main universe multiverse restricted
+          deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-updates main universe multiverse restricted
+          deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-security main universe multiverse restricted
+          EOF'
+
           sudo apt-get update
+
           sudo apt-get install -y \
-            gcc-arm-linux-gnueabihf \
-            libc6-dev-armhf-cross \
-            libdbus-1-dev:armhf \
-            libudev-dev:armhf \
-            pkg-config \
-            build-essential
+                gcc-arm-linux-gnueabihf \
+                libc6-dev-armhf-cross \
+                pkg-config \
+                build-essential \
+                libdbus-1-dev:armhf \
+                libudev-dev:armhf
 
       - name: 🚧 Build for Raspberry Pi Zero
         env:
