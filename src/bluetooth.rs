@@ -233,13 +233,13 @@ impl DualSenseController {
             request_passkey: Some(Box::new(|_device| {
                 Box::pin(async { Ok(123456) }) // auto-accept passkey
             })),
-            request_confirmation: Some(Box::new(|_device, _passkey| {
+            request_confirmation: Some(Box::new(|_device| {
                 Box::pin(async { Ok(()) }) // auto-confirm pairing
             })),
             request_authorization: Some(Box::new(|_device| {
                 Box::pin(async { Ok(()) }) // auto-authorize device
             })),
-            authorize_service: Some(Box::new(|_device, _uuid| {
+            authorize_service: Some(Box::new(|_device| {
                 Box::pin(async { Ok(()) }) // auto-authorize service
             })),
             display_pin_code: None,
