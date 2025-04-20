@@ -21,6 +21,7 @@ jobs:
 
       - name: 🔧 Install ARM toolchain and dependencies
         run: |
+          sudo dpkg --add-architecture armhf
           sudo apt-get update
           sudo apt-get install -y \
             gcc-arm-linux-gnueabihf \
