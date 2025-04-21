@@ -163,7 +163,7 @@ impl DualSenseController {
         });
         let adapter = session.default_adapter().await?;
         adapter.set_powered(true).await?;
-        adapter.set_alias("Pad").await?;
+        adapter.set_alias("Pad".to_owned()).await?;
         // Create HID Service with mandatory characteristics
         let mut service = Service {
             uuid: DUALSHOCK_SERVICE_UUID,
